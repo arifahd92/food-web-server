@@ -247,4 +247,92 @@ describe('OrdersService', () => {
       ).rejects.toThrow(NotFoundException);
     });
   });
+  describe('concurrency', () => {
+    it('should handle concurrent requests with the same idempotency key by returning the same promise', async () => {
+      const createOrderDto: CreateOrderDto = {
+        customer_name: 'Concurrent User',
+        customer_address: '123 Main St',
+        customer_phone: '555-1234',
+        idempotency_key: 'concurrent-key',
+        items: [
+          {
+            menu_item_id: mockMenuItem._id.toString(),
+            quantity: 1,
+            // @ts-ignore
+            unit_price: 15.0,
+          },
+        ],
+      };
+
+      // Mock menu item found
+      menuItemModel.find.mockResolvedValue([mockMenuItem]);
+
+      // Mock existing order check (initially not found)
+      service['orderModel'].findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      // We want to simulate a delay in processing to ensure overlap
+      // We'll mock the 'save' method of the created order to delay
+      // To do this, we need to intercept the new this.orderModel() call
+      // or just delay the whole thing.
+      // Since we mocked 'orderModel' class in beforeEach, let's adjust it for this test.
+
+      let resolveSave: (value: any) => void;
+      const savePromise = new Promise((resolve) => {
+        resolveSave = resolve;
+      });
+
+      // Mock the order instance save method to wait for our signal
+      const mockOrderInstance = {
+        save: jest.fn().mockImplementation(async () => {
+          await savePromise; // Wait until we manually resolve
+          return {
+            ...mockOrder,
+            toObject: () => ({ ...mockOrder }),
+          };
+        }),
+      };
+
+      // Override the constructor mock for this test
+      class MockOrderModelDelayed {
+        constructor(dto: any) {
+          return mockOrderInstance;
+        }
+        static findOne = jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue(null)
+        });
+      }
+      service['orderModel'] = MockOrderModelDelayed as any;
+
+
+      // Fire two requests concurrently
+      const req1 = service.create(createOrderDto);
+      const req2 = service.create(createOrderDto);
+
+      // They should both be pending
+      // resolve the save
+      // @ts-ignore
+      resolveSave();
+
+      const [res1, res2] = await Promise.all([req1, req2]);
+
+      // Both should return success
+      expect(res1).toBeDefined();
+      expect(res2).toBeDefined();
+
+      // IMPORTANT: They should be the EXACT same object reference if we returned the promise
+      // or at least have the same values.
+      // Since mapOrderToResponseJson creates a new DTO, strict reference equality might fail
+      // if the promise resolved and the second await got the result.
+      // However, we stored the PROMISE. So both awaits await the SAME promise.
+      // So the result reference might be identical if the processor returns a specific object.
+      // Let's check values at least.
+      expect(res1.id).toBe(res2.id);
+
+      // Verify that the processing logic (save) was only called ONCE
+      expect(mockOrderInstance.save).toHaveBeenCalledTimes(1);
+    });
+  });
 });
+

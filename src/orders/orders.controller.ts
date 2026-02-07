@@ -7,6 +7,7 @@ import {
   Param,
   Sse,
   UseGuards,
+  Headers,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/create-order.dto';
@@ -19,7 +20,13 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
-  create(@Body() createOrderDto: CreateOrderDto): Promise<OrderResponseDto> {
+  create(
+    @Body() createOrderDto: CreateOrderDto,
+    @Headers('idempotency-key') idempotencyKey: string,
+  ): Promise<OrderResponseDto> {
+    if (idempotencyKey) {
+      createOrderDto.idempotency_key = idempotencyKey;
+    }
     return this.ordersService.create(createOrderDto);
   }
 

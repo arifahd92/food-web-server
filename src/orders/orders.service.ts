@@ -17,6 +17,14 @@ import { SocketService } from './socket.service';
 export class OrdersService implements OnModuleInit {
   private orderUpdates$ = new Subject<OrderResponseDto>();
 
+  // -------------------------------------------------------------------------
+  // IN-MEMORY IDEMPOTENCY STORE
+  // LIMITATION: This map is local to the server instance. If the server restarts,
+  // the map is cleared. In a distributed system with multiple instances,
+  // this would require a shared store like Redis.
+  // -------------------------------------------------------------------------
+  private processingOrders = new Map<string, Promise<OrderResponseDto>>();
+
   constructor(
     @InjectModel(Order.name) private orderModel: Model<Order>,
     @InjectModel(MenuItem.name) private menuItemModel: Model<MenuItem>,
@@ -50,60 +58,88 @@ export class OrdersService implements OnModuleInit {
   }
 
   async create(createOrderDto: CreateOrderDto): Promise<OrderResponseDto> {
-    // -------------------------------------------------------------------------
-    // IDEMPOTENCY CHECK
-    // If an order with the same idempotency_key exists, return it immediately.
-    // -------------------------------------------------------------------------
-    const existingOrder = await this.orderModel
-      .findOne({ idempotency_key: createOrderDto.idempotency_key })
-      .exec();
+    const idempotencyKey = createOrderDto.idempotency_key;
 
-    if (existingOrder) {
-      return this.mapOrderToResponseJson(existingOrder.toObject());
+    // 1. Check in-memory processing map first
+    if (this.processingOrders.has(idempotencyKey)) {
+      const existingPromise = this.processingOrders.get(idempotencyKey);
+      if (existingPromise) {
+        return existingPromise;
+      }
     }
 
-    const menuIds = createOrderDto.items.map((i) => i.menu_item_id);
-    const menuDocs = await this.menuItemModel.find({ _id: { $in: menuIds } });
-    const menuMap = new Map(menuDocs.map((m) => [m._id.toString(), m]));
+    // 2. Create a promise for the processing logic
+    const processingPromise = (async () => {
+      try {
+        // -------------------------------------------------------------------------
+        // IDEMPOTENCY CHECK (DB fallback)
+        // If an order with the same key exists in DB (e.g. from previous server run),
+        // return it immediately.
+        // -------------------------------------------------------------------------
+        const existingOrder = await this.orderModel
+          .findOne({ idempotency_key: idempotencyKey })
+          .exec();
 
-    // -------------------------------------------------------------------------
-    // ASSUMPTION: Backend is the source of truth.
-    // We ignore any price sent from the frontend and recalculate strictly
-    // based on the database 'MenuItem.price'.
-    // -------------------------------------------------------------------------
+        if (existingOrder) {
+          return this.mapOrderToResponseJson(existingOrder.toObject());
+        }
 
-    let total = 0;
-    const orderItems = createOrderDto.items.map((i) => {
-      const menu = menuMap.get(i.menu_item_id);
-      if (!menu) {
-        throw new NotFoundException(
-          `Menu item with ID ${i.menu_item_id} not found`,
-        );
+        const menuIds = createOrderDto.items.map((i) => i.menu_item_id);
+        const menuDocs = await this.menuItemModel.find({
+          _id: { $in: menuIds },
+        });
+        const menuMap = new Map(menuDocs.map((m) => [m._id.toString(), m]));
+
+        // -------------------------------------------------------------------------
+        // ASSUMPTION: Backend is the source of truth.
+        // We ignore any price sent from the frontend and recalculate strictly
+        // based on the database 'MenuItem.price'.
+        // -------------------------------------------------------------------------
+
+        let total = 0;
+        const orderItems = createOrderDto.items.map((i) => {
+          const menu = menuMap.get(i.menu_item_id);
+          if (!menu) {
+            throw new NotFoundException(
+              `Menu item with ID ${i.menu_item_id} not found`,
+            );
+          }
+
+          const itemTotal = i.quantity * menu.price;
+          total += itemTotal;
+
+          return {
+            menu_item_id: new Types.ObjectId(i.menu_item_id),
+            quantity: i.quantity,
+            unit_price: menu.price, // STRICT: Use price from DB
+            name: menu.name,
+            image_url: menu.image_url,
+          };
+        });
+
+        const createdOrder = new this.orderModel({
+          ...createOrderDto,
+          total_amount: total,
+          items: orderItems,
+          status: 'order_received',
+        });
+
+        const saved = await createdOrder.save();
+        const result = this.mapOrderToResponseJson(saved.toObject());
+        this.orderUpdates$.next(result);
+        return result;
+      } catch (error) {
+        // On failure, remove the key so the request can be retried
+        this.processingOrders.delete(idempotencyKey);
+        throw error;
       }
-      
-      const itemTotal = i.quantity * menu.price;
-      total += itemTotal;
+    })();
 
-      return {
-        menu_item_id: new Types.ObjectId(i.menu_item_id),
-        quantity: i.quantity,
-        unit_price: menu.price, // STRICT: Use price from DB
-        name: menu.name,
-        image_url: menu.image_url,
-      };
-    });
+    // 3. Store the promise in the map
+    this.processingOrders.set(idempotencyKey, processingPromise);
 
-    const createdOrder = new this.orderModel({
-      ...createOrderDto,
-      total_amount: total,
-      items: orderItems,
-      status: 'order_received',
-    });
-
-    const saved = await createdOrder.save();
-    const result = this.mapOrderToResponseJson(saved.toObject());
-    this.orderUpdates$.next(result);
-    return result;
+    // 4. Return the promise
+    return processingPromise;
   }
 
   async findAll(): Promise<OrderResponseDto[]> {
