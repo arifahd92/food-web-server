@@ -9,6 +9,8 @@ import {
   IsString,
   MaxLength,
   Min,
+  Max,
+  IsInt,
   ValidateNested,
 } from 'class-validator';
 
@@ -17,15 +19,17 @@ export class OrderItemDto {
   @IsNotEmpty()
   menu_item_id: string;
 
-  @IsNumber()
+  @IsInt()
   @Min(1)
+  @Max(20)
   quantity: number;
-
-  @IsNumber()
-  @IsPositive()
-  unit_price: number;
 }
 
+/**
+ * DTO for creating a new order.
+ * Frontend only sends customer details, items (ID + Quantity), and idempotency key.
+ * Price and totals are NOT accepted from frontend.
+ */
 export class CreateOrderDto {
   @IsString()
   @IsNotEmpty()
@@ -45,6 +49,10 @@ export class CreateOrderDto {
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   items: OrderItemDto[];
+
+  @IsString()
+  @IsNotEmpty()
+  idempotency_key: string;
 }
 
 export class UpdateOrderStatusDto {

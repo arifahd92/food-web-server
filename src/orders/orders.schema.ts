@@ -14,6 +14,9 @@ export class Order {
   @Prop({ required: true, maxlength: 50 })
   customer_phone: string;
 
+  @Prop({ unique: true, sparse: true })
+  idempotency_key: string;
+
   @Prop({
     required: true,
     enum: ['order_received', 'preparing', 'out_for_delivery', 'delivered'],

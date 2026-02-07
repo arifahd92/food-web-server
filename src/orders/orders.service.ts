@@ -1,35 +1,21 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Order } from './orders.schema';
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/create-order.dto';
+import { OrderResponseDto } from './dto/order-response.dto';
 import { Observable, interval, map, Subject } from 'rxjs';
 import { MenuItem } from '../menu/menu.schema';
 import { SocketService } from './socket.service';
 
-export interface OrderWithItems {
-  id: string;
-  customer_name: string;
-  customer_address: string;
-  customer_phone: string;
-  status: string;
-  total_amount: number;
-  created_at: Date;
-  updated_at: Date;
-  items: {
-    id: string;
-    order_id: string;
-    menu_item_id: string;
-    quantity: number;
-    unit_price: number;
-    name?: string;
-    image_url?: string;
-  }[];
-}
-
 @Injectable()
 export class OrdersService implements OnModuleInit {
-  private orderUpdates$ = new Subject<OrderWithItems>();
+  private orderUpdates$ = new Subject<OrderResponseDto>();
 
   constructor(
     @InjectModel(Order.name) private orderModel: Model<Order>,
@@ -41,44 +27,69 @@ export class OrdersService implements OnModuleInit {
     this.startStatusSimulator();
   }
 
-  // Helper to map Mongoose doc to OrderWithItems
-  private mapOrderToWithItems(order: any): OrderWithItems {
-    return {
-      id: order._id.toString(),
-      customer_name: order.customer_name,
-      customer_address: order.customer_address,
-      customer_phone: order.customer_phone,
-      status: order.status,
-      total_amount: order.total_amount,
-      created_at: order.created_at,
-      updated_at: order.updated_at,
-      items: order.items.map((i: any) => ({
-        id: i._id?.toString() || '',
-        order_id: order._id.toString(),
-        menu_item_id: i.menu_item_id.toString(),
-        quantity: i.quantity,
-        unit_price: i.unit_price,
-        name: i.name,
-        image_url: i.image_url,
-      })),
-    };
+  // Helper to map Mongoose doc to OrderResponseDto
+  private mapOrderToResponseJson(order: any): OrderResponseDto {
+    const dto = new OrderResponseDto();
+    dto.id = order._id.toString();
+    dto.customer_name = order.customer_name;
+    dto.customer_address = order.customer_address;
+    dto.customer_phone = order.customer_phone;
+    dto.status = order.status;
+    dto.total_amount = order.total_amount;
+    dto.created_at = order.created_at;
+    dto.updated_at = order.updated_at;
+    dto.items = order.items.map((i: any) => ({
+      id: i._id?.toString() || '',
+      menu_item_id: i.menu_item_id.toString(),
+      name: i.name,
+      image_url: i.image_url,
+      quantity: i.quantity,
+      unit_price: i.unit_price,
+    }));
+    return dto;
   }
 
-  async create(createOrderDto: CreateOrderDto): Promise<OrderWithItems> {
+  async create(createOrderDto: CreateOrderDto): Promise<OrderResponseDto> {
+    // -------------------------------------------------------------------------
+    // IDEMPOTENCY CHECK
+    // If an order with the same idempotency_key exists, return it immediately.
+    // -------------------------------------------------------------------------
+    const existingOrder = await this.orderModel
+      .findOne({ idempotency_key: createOrderDto.idempotency_key })
+      .exec();
+
+    if (existingOrder) {
+      return this.mapOrderToResponseJson(existingOrder.toObject());
+    }
+
     const menuIds = createOrderDto.items.map((i) => i.menu_item_id);
     const menuDocs = await this.menuItemModel.find({ _id: { $in: menuIds } });
     const menuMap = new Map(menuDocs.map((m) => [m._id.toString(), m]));
 
+    // -------------------------------------------------------------------------
+    // ASSUMPTION: Backend is the source of truth.
+    // We ignore any price sent from the frontend and recalculate strictly
+    // based on the database 'MenuItem.price'.
+    // -------------------------------------------------------------------------
+
     let total = 0;
     const orderItems = createOrderDto.items.map((i) => {
       const menu = menuMap.get(i.menu_item_id);
-      total += i.quantity * i.unit_price;
+      if (!menu) {
+        throw new NotFoundException(
+          `Menu item with ID ${i.menu_item_id} not found`,
+        );
+      }
+      
+      const itemTotal = i.quantity * menu.price;
+      total += itemTotal;
+
       return {
         menu_item_id: new Types.ObjectId(i.menu_item_id),
         quantity: i.quantity,
-        unit_price: i.unit_price,
-        name: menu?.name,
-        image_url: menu?.image_url,
+        unit_price: menu.price, // STRICT: Use price from DB
+        name: menu.name,
+        image_url: menu.image_url,
       };
     });
 
@@ -90,38 +101,61 @@ export class OrdersService implements OnModuleInit {
     });
 
     const saved = await createdOrder.save();
-    const result = this.mapOrderToWithItems(saved.toObject());
+    const result = this.mapOrderToResponseJson(saved.toObject());
     this.orderUpdates$.next(result);
     return result;
   }
 
-  async findAll(): Promise<OrderWithItems[]> {
+  async findAll(): Promise<OrderResponseDto[]> {
     const orders = await this.orderModel.find().sort({ createdAt: -1 }).exec();
-    return orders.map((o) => this.mapOrderToWithItems(o.toObject()));
+    return orders.map((o) => this.mapOrderToResponseJson(o.toObject()));
   }
 
-  async findOne(id: string): Promise<OrderWithItems> {
+  async findOne(id: string): Promise<OrderResponseDto> {
     const order = await this.orderModel.findById(id).exec();
     if (!order) {
       throw new NotFoundException(`Order #${id} not found`);
     }
-    return this.mapOrderToWithItems(order.toObject());
+    return this.mapOrderToResponseJson(order.toObject());
   }
 
   async updateStatus(
     id: string,
     updateDto: UpdateOrderStatusDto,
-  ): Promise<OrderWithItems> {
-    const updatedOrderDoc = await this.orderModel
-      .findByIdAndUpdate(id, { status: updateDto.status }, { new: true })
-      .exec();
+  ): Promise<OrderResponseDto> {
 
+    const updatedOrderDoc = await this.orderModel.findById(id).exec();
     if (!updatedOrderDoc) {
       throw new NotFoundException(`Order #${id} not found`);
     }
 
-    const result = this.mapOrderToWithItems(updatedOrderDoc.toObject());
+    const STATUS_FLOW = [
+      'order_received',
+      'preparing',
+      'out_for_delivery',
+      'delivered',
+    ];
+
+    const currentStatus = updatedOrderDoc.status;
+    const newStatus = updateDto.status;
+    const currentIdx = STATUS_FLOW.indexOf(currentStatus);
+    const newIdx = STATUS_FLOW.indexOf(newStatus);
+
+    // -------------------------------------------------------------------------
+    // STRICT VALIDATION: Only allow forward transitions.
+    // -------------------------------------------------------------------------
+    if (newIdx < currentIdx || newIdx > currentIdx + 1) {
+      throw new BadRequestException(
+        `Invalid status transition from ${currentStatus} to ${newStatus}`,
+      );
+    }
+
+    updatedOrderDoc.status = newStatus;
+    const savedOrder = await updatedOrderDoc.save();
+
+    const result = this.mapOrderToResponseJson(savedOrder.toObject());
     this.orderUpdates$.next(result);
+    
     // Emit event via Socket.io
     this.socketService.emitOrderStatusUpdate(result.id, result.status);
     this.socketService.broadcastOrderUpdateToAll(result.id, result);
@@ -160,7 +194,7 @@ export class OrdersService implements OnModuleInit {
             const nextStatus = STATUS_FLOW[idx + 1];
             order.status = nextStatus;
             await order.save();
-            const updated = this.mapOrderToWithItems(order.toObject());
+            const updated = this.mapOrderToResponseJson(order.toObject());
             this.orderUpdates$.next(updated);
           }
         }
