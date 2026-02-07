@@ -1,7 +1,9 @@
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class GetOrdersAdminDto {
+  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 20 })
   @IsOptional()
   @IsInt()
   @Min(1)
@@ -9,6 +11,7 @@ export class GetOrdersAdminDto {
   @Type(() => Number)
   limit?: number = 10;
 
+  @ApiPropertyOptional({ description: 'Opaque cursor string for pagination' })
   @IsOptional()
   @IsString()
   cursor?: string;

@@ -13,12 +13,18 @@ import {
   IsInt,
   ValidateNested,
 } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class OrderItemDto {
+  @ApiProperty({
+    example: '64c9e13e8b0f3e6a12345678',
+    description: 'MongoDB ID of the menu item',
+  })
   @IsMongoId()
   @IsNotEmpty()
   menu_item_id: string;
 
+  @ApiProperty({ example: 2, description: 'Quantity of the item', minimum: 1, maximum: 20 })
   @IsInt()
   @Min(1)
   @Max(20)
@@ -31,31 +37,44 @@ export class OrderItemDto {
  * Price and totals are NOT accepted from frontend.
  */
 export class CreateOrderDto {
+  @ApiProperty({ example: 'John Doe', description: 'Customer full name' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
   customer_name: string;
 
+  @ApiProperty({ example: '123 Main St, Springfield', description: 'Delivery address' })
   @IsString()
   @IsNotEmpty()
   customer_address: string;
 
+  @ApiProperty({ example: '555-0199', description: 'Contact phone number' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(50)
   customer_phone: string;
 
+  @ApiProperty({ type: [OrderItemDto], description: 'List of items in the order' })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   items: OrderItemDto[];
 
+  @ApiProperty({
+    example: 'unique-uuid-v4-string',
+    description: 'Idempotency key to prevent duplicate orders',
+  })
   @IsString()
   @IsNotEmpty()
   idempotency_key: string;
 }
 
 export class UpdateOrderStatusDto {
+  @ApiProperty({
+    enum: ['order_received', 'preparing', 'out_for_delivery', 'delivered'],
+    example: 'preparing',
+    description: 'New status for the order',
+  })
   @IsEnum(['order_received', 'preparing', 'out_for_delivery', 'delivered'])
   status: string;
 }
