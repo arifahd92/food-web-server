@@ -232,6 +232,9 @@ export class OrdersService implements OnModuleInit {
             await order.save();
             const updated = this.mapOrderToResponseJson(order.toObject());
             this.orderUpdates$.next(updated);
+            // Emit via Socket.io for real-time frontend updates
+            this.socketService.emitOrderStatusUpdate(updated.id, updated.status);
+            this.socketService.broadcastOrderUpdateToAll(updated.id, updated);
           }
         }
       } catch (err) {

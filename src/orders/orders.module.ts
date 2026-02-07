@@ -4,7 +4,7 @@ import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { Order, OrderSchema } from './orders.schema';
 import { MenuItem, MenuItemSchema } from '../menu/menu.schema';
-import { OrdersGateway } from './orders.gateway';
+// import { OrdersGateway } from './orders.gateway';
 import { UserConnectionGateway } from './gateways/user-connection.gateway';
 import { OrderUpdatesGateway } from './gateways/order-updates.gateway';
 import { SocketService } from './socket.service';
@@ -19,7 +19,7 @@ import { SocketService } from './socket.service';
   controllers: [OrdersController],
   providers: [
     OrdersService,
-    OrdersGateway,
+    // OrdersGateway, // Removed as it is redundant
     UserConnectionGateway,
     OrderUpdatesGateway,
     SocketService,
