@@ -147,6 +147,64 @@ export class OrdersService implements OnModuleInit {
     return orders.map((o) => this.mapOrderToResponseJson(o.toObject()));
   }
 
+  async findAllAdmin(
+    dto: import('./dto/get-orders-admin.dto').GetOrdersAdminDto,
+  ): Promise<import('./dto/paginated-order-response.dto').PaginatedOrderResponseDto> {
+    const limit = dto.limit || 10;
+    let query = {};
+
+    if (dto.cursor) {
+      try {
+        const decoded = JSON.parse(
+          Buffer.from(dto.cursor, 'base64').toString('utf-8'),
+        );
+        // Cursor-based pagination: fetch items older than the cursor
+        // Tie-breaker: if updatedAt is same, use _id
+        query = {
+          $or: [
+            { updatedAt: { $lt: decoded.updatedAt } },
+            {
+              updatedAt: decoded.updatedAt,
+              _id: { $lt: new Types.ObjectId(decoded.id) },
+            },
+          ],
+        };
+      } catch (e) {
+        throw new BadRequestException('Invalid cursor format');
+      }
+    }
+
+    // Fetch limit + 1 to know if there's a next page
+    const orders = await this.orderModel
+      .find(query)
+      .sort({ updatedAt: -1, _id: -1 })
+      .limit(limit + 1)
+      .exec();
+
+    const hasNextPage = orders.length > limit;
+    const items = hasNextPage ? orders.slice(0, limit) : orders;
+
+    let nextCursor: string | null = null;
+    if (hasNextPage) {
+      const lastItem = items[items.length - 1] as any;
+      const cursorPayload = {
+        updatedAt: lastItem.updatedAt,
+        id: lastItem._id.toString(),
+      };
+      nextCursor = Buffer.from(JSON.stringify(cursorPayload)).toString('base64');
+    }
+
+    const { PaginatedOrderResponseDto } = await import(
+      './dto/paginated-order-response.dto'
+    );
+    const response = new PaginatedOrderResponseDto();
+    response.items = items.map((o) => this.mapOrderToResponseJson(o.toObject()));
+    response.nextCursor = nextCursor;
+    response.limit = limit;
+
+    return response;
+  }
+
   async findOne(id: string): Promise<OrderResponseDto> {
     const order = await this.orderModel.findById(id).exec();
     if (!order) {

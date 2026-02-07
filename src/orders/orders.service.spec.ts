@@ -334,5 +334,31 @@ describe('OrdersService', () => {
       expect(mockOrderInstance.save).toHaveBeenCalledTimes(1);
     });
   });
+  describe('findAllAdmin', () => {
+    it('should return paginated results with cursor', async () => {
+      const mockOrders = [
+        { ...mockOrder, _id: new Types.ObjectId(), updatedAt: new Date('2024-01-02') },
+        { ...mockOrder, _id: new Types.ObjectId(), updatedAt: new Date('2024-01-01') },
+      ];
+      // Mock mongoose find chain
+      const mockFind = {
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockOrders.map(o => ({
+            ...o,
+            toObject: () => o
+        }))),
+      };
+      service['orderModel'].find = jest.fn().mockReturnValue(mockFind);
+
+      const result = await service.findAllAdmin({ limit: 1 });
+
+      expect(service['orderModel'].find).toHaveBeenCalledWith({});
+      // Since we mocked returning 2 items but requested limit 1, it should have a nextCursor
+      expect(result.items.length).toBe(1); // Service slices the extra item
+      expect(result.nextCursor).toBeDefined();
+      expect(result.limit).toBe(1);
+    });
+  });
 });
 

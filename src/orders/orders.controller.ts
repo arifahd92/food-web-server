@@ -8,6 +8,7 @@ import {
   Sse,
   UseGuards,
   Headers,
+  Query,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/create-order.dto';
@@ -33,6 +34,15 @@ export class OrdersController {
   @Get()
   findAll(): Promise<OrderResponseDto[]> {
     return this.ordersService.findAll();
+  }
+
+  @Get('admin')
+  findAllAdmin(
+    @Query() dto: import('./dto/get-orders-admin.dto').GetOrdersAdminDto,
+  ): Promise<
+    import('./dto/paginated-order-response.dto').PaginatedOrderResponseDto
+  > {
+    return this.ordersService.findAllAdmin(dto);
   }
 
   @Sse('stream')
