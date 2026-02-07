@@ -1,46 +1,29 @@
-version: '3.8'
-
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: nest-app
-    ports:
-      - "3000:3000"
+    container_name: chat-app
+    env_file:
+      - .env
     environment:
-      - mongouri=mongodb://mongo:27017/food_app
-      - PORT=3000
-    depends_on:
-      - mongo
-      - redis
-    networks:
-      - app-network
+      NODE_ENV: ${NODE_ENV}
+      PORT: 8081
 
-  mongo:
-    image: mongo:latest
-    container_name: mongo
+      # Mongo (env-driven)
+      MONGO_HOST: ${MONGO_HOST}
+      MONGO_PORT: ${MONGO_PORT}
+      MONGO_DB: ${MONGO_DB}
+      MONGO_USER: ${MONGO_USER}
+      MONGO_PASS: ${MONGO_PASS}
+      DATABASE_URL: ${DATABASE_URL}   # optional (Atlas / full URI)
+
+      # Redis
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+
     ports:
-      - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
+      - "8081:8081"
+    restart: unless-stopped
     networks:
       - app-network
-
-  redis:
-    image: redis:alpine
-    container_name: redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - app-network
-
-networks:
-  app-network:
-    driver: bridge
-
-volumes:
-  mongo-data:
-  redis-data:

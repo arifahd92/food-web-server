@@ -14,7 +14,7 @@ import { OrdersModule } from './orders/orders.module';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('mongouri'),
+        uri: configService.get<string>('DATABASE_URL'),
       }),
       inject: [ConfigService],
     }),

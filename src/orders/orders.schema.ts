@@ -27,7 +27,11 @@ export class Order {
   @Prop({
     type: [
       {
-        menu_item_id: { type: MongooseSchema.Types.ObjectId, ref: 'MenuItem', required: true },
+        menu_item_id: {
+          type: MongooseSchema.Types.ObjectId,
+          ref: 'MenuItem',
+          required: true,
+        },
         quantity: { type: Number, required: true, min: 1 },
         unit_price: { type: Number, required: true, min: 0 },
         name: { type: String },

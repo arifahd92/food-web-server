@@ -6,10 +6,12 @@ import { MenuItem, MenuItemSchema } from './menu.schema';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: MenuItem.name, schema: MenuItemSchema }]),
+    MongooseModule.forFeature([
+      { name: MenuItem.name, schema: MenuItemSchema },
+    ]),
   ],
   controllers: [MenuController],
   providers: [MenuService],
-  exports: [MongooseModule], 
+  exports: [MongooseModule],
 })
 export class MenuModule {}

@@ -5,6 +5,9 @@ import { OrdersService } from './orders.service';
 import { Order, OrderSchema } from './orders.schema';
 import { MenuItem, MenuItemSchema } from '../menu/menu.schema';
 import { OrdersGateway } from './orders.gateway';
+import { UserConnectionGateway } from './gateways/user-connection.gateway';
+import { OrderUpdatesGateway } from './gateways/order-updates.gateway';
+import { SocketService } from './socket.service';
 
 @Module({
   imports: [
@@ -14,6 +17,13 @@ import { OrdersGateway } from './orders.gateway';
     ]),
   ],
   controllers: [OrdersController],
-  providers: [OrdersService, OrdersGateway],
+  providers: [
+    OrdersService,
+    OrdersGateway,
+    UserConnectionGateway,
+    OrderUpdatesGateway,
+    SocketService,
+  ],
+  exports: [SocketService],
 })
 export class OrdersModule {}

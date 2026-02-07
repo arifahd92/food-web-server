@@ -1,4 +1,3 @@
-
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -6,7 +5,7 @@ import { Order } from './orders.schema';
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/create-order.dto';
 import { Observable, interval, map, Subject } from 'rxjs';
 import { MenuItem } from '../menu/menu.schema';
-import { OrdersGateway } from './orders.gateway';
+import { SocketService } from './socket.service';
 
 export interface OrderWithItems {
   id: string;
@@ -35,7 +34,7 @@ export class OrdersService implements OnModuleInit {
   constructor(
     @InjectModel(Order.name) private orderModel: Model<Order>,
     @InjectModel(MenuItem.name) private menuItemModel: Model<MenuItem>,
-    private readonly ordersGateway: OrdersGateway,
+    private readonly socketService: SocketService,
   ) {}
 
   onModuleInit() {
@@ -109,7 +108,10 @@ export class OrdersService implements OnModuleInit {
     return this.mapOrderToWithItems(order.toObject());
   }
 
-  async updateStatus(id: string, updateDto: UpdateOrderStatusDto): Promise<OrderWithItems> {
+  async updateStatus(
+    id: string,
+    updateDto: UpdateOrderStatusDto,
+  ): Promise<OrderWithItems> {
     const updatedOrderDoc = await this.orderModel
       .findByIdAndUpdate(id, { status: updateDto.status }, { new: true })
       .exec();
@@ -117,11 +119,12 @@ export class OrdersService implements OnModuleInit {
     if (!updatedOrderDoc) {
       throw new NotFoundException(`Order #${id} not found`);
     }
-    
+
     const result = this.mapOrderToWithItems(updatedOrderDoc.toObject());
     this.orderUpdates$.next(result);
     // Emit event via Socket.io
-    this.ordersGateway.emitOrderStatusUpdate(result.id, result.status);
+    this.socketService.emitOrderStatusUpdate(result.id, result.status);
+    this.socketService.broadcastOrderUpdateToAll(result.id, result);
 
     return result;
   }
@@ -137,7 +140,12 @@ export class OrdersService implements OnModuleInit {
   }
 
   private startStatusSimulator() {
-    const STATUS_FLOW = ['order_received', 'preparing', 'out_for_delivery', 'delivered'];
+    const STATUS_FLOW = [
+      'order_received',
+      'preparing',
+      'out_for_delivery',
+      'delivered',
+    ];
     setInterval(async () => {
       try {
         const orders = await this.orderModel
