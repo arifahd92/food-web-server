@@ -54,6 +54,12 @@ export class CreateOrderDto {
   @MaxLength(50)
   customer_phone: string;
 
+  @ApiProperty({ example: 'john@example.com', description: 'Customer email for order tracking' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  customer_email: string;
+
   @ApiProperty({ type: [OrderItemDto], description: 'List of items in the order' })
   @IsArray()
   @ValidateNested({ each: true })

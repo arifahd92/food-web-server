@@ -42,6 +42,7 @@ export class OrdersService implements OnModuleInit {
     dto.customer_name = order.customer_name;
     dto.customer_address = order.customer_address;
     dto.customer_phone = order.customer_phone;
+    dto.customer_email = order.customer_email;
     dto.status = order.status;
     dto.total_amount = order.total_amount;
     dto.created_at = order.created_at;
@@ -127,6 +128,10 @@ export class OrdersService implements OnModuleInit {
         const saved = await createdOrder.save();
         const result = this.mapOrderToResponseJson(saved.toObject());
         this.orderUpdates$.next(result);
+
+        // Notify Admin Dashboard of new order
+        this.socketService.broadcastOrderUpdate(result.id, result);
+
         return result;
       } catch (error) {
         // On failure, remove the key so the request can be retried
@@ -142,8 +147,9 @@ export class OrdersService implements OnModuleInit {
     return processingPromise;
   }
 
-  async findAll(): Promise<OrderResponseDto[]> {
-    const orders = await this.orderModel.find().sort({ createdAt: -1 }).exec();
+  async findAll(email?: string): Promise<OrderResponseDto[]> {
+    const filter = email ? { customer_email: email } : {};
+    const orders = await this.orderModel.find(filter).sort({ createdAt: -1 }).exec();
     return orders.map((o) => this.mapOrderToResponseJson(o.toObject()));
   }
 
@@ -252,7 +258,7 @@ export class OrdersService implements OnModuleInit {
 
     // Emit event via Socket.io
     this.socketService.emitOrderStatusUpdate(result.id, result.status);
-    this.socketService.broadcastOrderUpdateToAll(result.id, result);
+    this.socketService.broadcastOrderUpdate(result.id, result);
 
     return result;
   }
@@ -292,7 +298,7 @@ export class OrdersService implements OnModuleInit {
             this.orderUpdates$.next(updated);
             // Emit via Socket.io for real-time frontend updates
             this.socketService.emitOrderStatusUpdate(updated.id, updated.status);
-            this.socketService.broadcastOrderUpdateToAll(updated.id, updated);
+            this.socketService.broadcastOrderUpdate(updated.id, updated);
           }
         }
       } catch (err) {

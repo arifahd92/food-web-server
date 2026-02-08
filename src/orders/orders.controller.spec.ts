@@ -29,4 +29,17 @@ describe('OrdersController', () => {
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });
+
+  describe('findAll', () => {
+    it('should call service.findAll with email if provided', async () => {
+      const email = 'test@example.com';
+      await controller.findAll(email);
+      expect(mockOrdersService.findAll).toHaveBeenCalledWith(email);
+    });
+
+    it('should call service.findAll without email if not provided', async () => {
+      await controller.findAll();
+      expect(mockOrdersService.findAll).toHaveBeenCalledWith(undefined);
+    });
+  });
 });

@@ -63,7 +63,7 @@ describe('OrdersService', () => {
           provide: SocketService,
           useValue: {
             emitOrderStatusUpdate: jest.fn(),
-            broadcastOrderUpdateToAll: jest.fn(),
+            broadcastOrderUpdate: jest.fn(),
           },
         },
       ],
@@ -121,6 +121,7 @@ describe('OrdersService', () => {
       // The total should be 2 * 15.0 = 30.0, NOT 999
       expect(result.total_amount).toBe(30.0);
       expect(result.items[0].unit_price).toBe(15.0);
+      expect(socketService.broadcastOrderUpdate).toHaveBeenCalledWith(result.id, result);
     });
 
     it('should return existing order if idempotency key exists', async () => {

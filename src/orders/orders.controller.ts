@@ -55,14 +55,15 @@ export class OrdersController {
 
   @Get()
   @Get()
-  @ApiOperation({ summary: 'Get all orders (Public/Simple list) - Recent first' })
+  @ApiOperation({ summary: 'Get all orders (Public/Simple list) - Recent first. Optional: Filter by email.' })
+  @ApiQuery({ name: 'email', required: false, description: 'Filter orders by customer email' })
   @ApiResponse({
     status: 200,
     description: 'List of all orders.',
     type: [OrderResponseDto],
   })
-  findAll(): Promise<OrderResponseDto[]> {
-    return this.ordersService.findAll();
+  findAll(@Query('email') email?: string): Promise<OrderResponseDto[]> {
+    return this.ordersService.findAll(email);
   }
 
   @Get('admin')

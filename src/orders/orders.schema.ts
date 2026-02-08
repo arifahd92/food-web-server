@@ -14,6 +14,9 @@ export class Order {
   @Prop({ required: true, maxlength: 50 })
   customer_phone: string;
 
+  @Prop({ required: true, maxlength: 255 })
+  customer_email: string;
+
   @Prop({ unique: true, sparse: true })
   idempotency_key: string;
 

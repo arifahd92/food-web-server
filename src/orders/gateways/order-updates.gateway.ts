@@ -101,11 +101,31 @@ export class OrderUpdatesGateway {
   }
 
   /**
-   * Broadcast order update to all clients in the order room
+   * Subscribe to admin updates
+   */
+  @SubscribeMessage('joinAdminRoom')
+  handleJoinAdminRoom(
+    @ConnectedSocket() client: Socket,
+  ) {
+    client.join('admin');
+    this.logger.log(`Client ${client.id} joined admin room`);
+  }
+
+  /**
+   * Broadcast order update to all clients in the order room AND admin room
    */
   broadcastOrderUpdate(orderId: string, orderData: any) {
     this.logger.debug(`Broadcasting order update for ${orderId}`);
+
+    // Emit to specific order room (for Buyer tracking)
     this.server.to(orderId).emit('orderUpdated', {
+      orderId,
+      ...orderData,
+      timestamp: new Date(),
+    });
+
+    // Emit to admin room (for Dashboard)
+    this.server.to('admin').emit('orderUpdated', {
       orderId,
       ...orderData,
       timestamp: new Date(),
