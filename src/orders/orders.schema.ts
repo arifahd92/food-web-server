@@ -19,8 +19,8 @@ export class Order {
 
   @Prop({
     required: true,
-    enum: ['order_received', 'preparing', 'out_for_delivery', 'delivered'],
-    default: 'order_received',
+    enum: ['RECEIVED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED'],
+    default: 'RECEIVED',
   })
   status: string;
 

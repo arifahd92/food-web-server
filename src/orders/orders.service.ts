@@ -29,7 +29,7 @@ export class OrdersService implements OnModuleInit {
     @InjectModel(Order.name) private orderModel: Model<Order>,
     @InjectModel(MenuItem.name) private menuItemModel: Model<MenuItem>,
     private readonly socketService: SocketService,
-  ) {}
+  ) { }
 
   onModuleInit() {
     this.startStatusSimulator();
@@ -57,9 +57,7 @@ export class OrdersService implements OnModuleInit {
     return dto;
   }
 
-  async create(createOrderDto: CreateOrderDto): Promise<OrderResponseDto> {
-    const idempotencyKey = createOrderDto.idempotency_key;
-
+  async create(createOrderDto: CreateOrderDto, idempotencyKey: string): Promise<OrderResponseDto> {
     // 1. Check in-memory processing map first
     if (this.processingOrders.has(idempotencyKey)) {
       const existingPromise = this.processingOrders.get(idempotencyKey);
@@ -121,7 +119,9 @@ export class OrdersService implements OnModuleInit {
           ...createOrderDto,
           total_amount: total,
           items: orderItems,
-          status: 'order_received',
+          // Explicitly set the key from header
+          idempotency_key: idempotencyKey,
+          status: 'RECEIVED',
         });
 
         const saved = await createdOrder.save();
@@ -224,10 +224,10 @@ export class OrdersService implements OnModuleInit {
     }
 
     const STATUS_FLOW = [
-      'order_received',
-      'preparing',
-      'out_for_delivery',
-      'delivered',
+      'RECEIVED',
+      'PREPARING',
+      'OUT_FOR_DELIVERY',
+      'DELIVERED',
     ];
 
     const currentStatus = updatedOrderDoc.status;
@@ -249,7 +249,7 @@ export class OrdersService implements OnModuleInit {
 
     const result = this.mapOrderToResponseJson(savedOrder.toObject());
     this.orderUpdates$.next(result);
-    
+
     // Emit event via Socket.io
     this.socketService.emitOrderStatusUpdate(result.id, result.status);
     this.socketService.broadcastOrderUpdateToAll(result.id, result);
@@ -269,15 +269,15 @@ export class OrdersService implements OnModuleInit {
 
   private startStatusSimulator() {
     const STATUS_FLOW = [
-      'order_received',
-      'preparing',
-      'out_for_delivery',
-      'delivered',
+      'RECEIVED',
+      'PREPARING',
+      'OUT_FOR_DELIVERY',
+      'DELIVERED',
     ];
     setInterval(async () => {
       try {
         const orders = await this.orderModel
-          .find({ status: { $ne: 'delivered' } })
+          .find({ status: { $ne: 'DELIVERED' } })
           .sort({ createdAt: 1 })
           .limit(5)
           .exec();

@@ -60,21 +60,16 @@ export class CreateOrderDto {
   @Type(() => OrderItemDto)
   items: OrderItemDto[];
 
-  @ApiProperty({
-    example: 'unique-uuid-v4-string',
-    description: 'Idempotency key to prevent duplicate orders',
-  })
-  @IsString()
-  @IsNotEmpty()
-  idempotency_key: string;
+  // idempotency_key is now passed via header 'Idempotency-Key'
+  // idempotency_key: string; 
 }
 
 export class UpdateOrderStatusDto {
   @ApiProperty({
-    enum: ['order_received', 'preparing', 'out_for_delivery', 'delivered'],
-    example: 'preparing',
+    enum: ['RECEIVED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED'],
+    example: 'PREPARING',
     description: 'New status for the order',
   })
-  @IsEnum(['order_received', 'preparing', 'out_for_delivery', 'delivered'])
+  @IsEnum(['RECEIVED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED'])
   status: string;
 }

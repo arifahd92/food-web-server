@@ -5,7 +5,6 @@ import { Order } from './orders.schema';
 import { MenuItem } from '../menu/menu.schema';
 import { SocketService } from './socket.service';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { OrderResponseDto } from './dto/order-response.dto';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 
@@ -25,7 +24,7 @@ describe('OrdersService', () => {
   const mockOrder = {
     _id: new Types.ObjectId('64c9e13e8b0f3e6a87654321'),
     customer_name: 'John Doe',
-    status: 'order_received',
+    status: 'RECEIVED',
     total_amount: 30.0,
     items: [
       {
@@ -98,7 +97,6 @@ describe('OrdersService', () => {
         customer_name: 'John Doe',
         customer_address: '123 Main St',
         customer_phone: '555-1234',
-        idempotency_key: 'unique-key-1',
         items: [
           {
             menu_item_id: mockMenuItem._id.toString(),
@@ -117,7 +115,7 @@ describe('OrdersService', () => {
 
       // We need to spy on the constructor or the save method
       // Since we mocked the class above, 'mockOrder.save' is what we check
-      const result = await service.create(createOrderDto);
+      const result = await service.create(createOrderDto, 'unique-key-1');
 
       expect(menuItemModel.find).toHaveBeenCalled();
       // The total should be 2 * 15.0 = 30.0, NOT 999
@@ -126,25 +124,24 @@ describe('OrdersService', () => {
     });
 
     it('should return existing order if idempotency key exists', async () => {
-         const createOrderDto: CreateOrderDto = {
+      const createOrderDto: CreateOrderDto = {
         customer_name: 'John Doe',
         customer_address: '123 Main St',
         customer_phone: '555-1234',
-        idempotency_key: 'existing-key',
         items: [],
       };
 
       const existingOrderMock = {
-          ...mockOrder,
-          idempotency_key: 'existing-key',
-          toObject: () => ({ ...mockOrder, idempotency_key: 'existing-key', _id: mockOrder._id })
+        ...mockOrder,
+        idempotency_key: 'existing-key',
+        toObject: () => ({ ...mockOrder, idempotency_key: 'existing-key', _id: mockOrder._id })
       };
 
       service['orderModel'].findOne = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue(existingOrderMock)
       });
 
-      const result = await service.create(createOrderDto);
+      const result = await service.create(createOrderDto, 'existing-key');
       expect(result.id).toBe(mockOrder._id.toString());
       // Should not call menu item find or create new order
       expect(menuItemModel.find).not.toHaveBeenCalled();
@@ -155,7 +152,6 @@ describe('OrdersService', () => {
         customer_name: 'John Doe',
         customer_address: '123 Main St',
         customer_phone: '555-1234',
-        idempotency_key: 'unique-key-2',
         items: [
           {
             menu_item_id: new Types.ObjectId().toString(),
@@ -164,12 +160,12 @@ describe('OrdersService', () => {
         ],
       };
 
-       service['orderModel'].findOne = jest.fn().mockReturnValue({
+      service['orderModel'].findOne = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue(null)
       });
       menuItemModel.find.mockResolvedValue([]);
 
-      await expect(service.create(createOrderDto)).rejects.toThrow(
+      await expect(service.create(createOrderDto, 'unique-key-2')).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -177,83 +173,82 @@ describe('OrdersService', () => {
 
   describe('updateStatus', () => {
     it('should update status for valid transition', async () => {
-        const orderId = mockOrder._id.toString();
-        // Setup findById to return a document with status 'order_received'
-        // We need a proper mongoose document mock that includes a save method
-        const docMock = {
-            ...mockOrder,
-            status: 'order_received',
-            save: jest.fn().mockImplementation(function() {
-                return Promise.resolve(this);
-            }),
-            toObject: function() { return this; }
-        };
-        
-        service['orderModel'].findById = jest.fn().mockReturnValue({
-            exec: jest.fn().mockResolvedValue(docMock)
-        });
+      const orderId = mockOrder._id.toString();
+      // Setup findById to return a document with status 'RECEIVED'
+      const docMock = {
+        ...mockOrder,
+        status: 'RECEIVED',
+        save: jest.fn().mockImplementation(function () {
+          return Promise.resolve(this);
+        }),
+        toObject: function () { return this; }
+      };
 
-        const result = await service.updateStatus(orderId, { status: 'preparing' });
+      service['orderModel'].findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(docMock)
+      });
 
-        expect(docMock.status).toBe('preparing');
-        expect(docMock.save).toHaveBeenCalled();
-        expect(result.status).toBe('preparing');
+      const result = await service.updateStatus(orderId, { status: 'PREPARING' });
+
+      expect(docMock.status).toBe('PREPARING');
+      expect(docMock.save).toHaveBeenCalled();
+      expect(result.status).toBe('PREPARING');
     });
 
     it('should throw BadRequestException for invalid transition (skipping step)', async () => {
-        const orderId = mockOrder._id.toString();
-        const docMock = {
-            ...mockOrder,
-            status: 'order_received',
-            save: jest.fn(),
-            toObject: function() { return this; },
-            exec: jest.fn().mockResolvedValue(this)
-        };
+      const orderId = mockOrder._id.toString();
+      const docMock = {
+        ...mockOrder,
+        status: 'RECEIVED',
+        save: jest.fn(),
+        toObject: function () { return this; },
+        exec: jest.fn().mockResolvedValue(this)
+      };
 
-        service['orderModel'].findById = jest.fn().mockReturnValue({
-            exec: jest.fn().mockResolvedValue(docMock)
-        });
+      service['orderModel'].findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(docMock)
+      });
 
       await expect(
-        service.updateStatus(orderId, { status: 'delivered' }),
+        service.updateStatus(orderId, { status: 'DELIVERED' }),
       ).rejects.toThrow(BadRequestException);
     });
-    
-    it('should throw BadRequestException for invalid transition (going backwards)', async () => {
-        const orderId = mockOrder._id.toString();
-        const docMock = {
-            ...mockOrder,
-            status: 'out_for_delivery',
-            save: jest.fn(),
-            toObject: function() { return this; }
-        };
 
-        service['orderModel'].findById = jest.fn().mockReturnValue({
-             exec: jest.fn().mockResolvedValue(docMock)
-        });
+    it('should throw BadRequestException for invalid transition (going backwards)', async () => {
+      const orderId = mockOrder._id.toString();
+      const docMock = {
+        ...mockOrder,
+        status: 'OUT_FOR_DELIVERY',
+        save: jest.fn(),
+        toObject: function () { return this; }
+      };
+
+      service['orderModel'].findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(docMock)
+      });
 
       await expect(
-        service.updateStatus(orderId, { status: 'preparing' }),
+        service.updateStatus(orderId, { status: 'PREPARING' }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw NotFoundException if order not found', async () => {
-       service['orderModel'].findById = jest.fn().mockReturnValue({
-            exec: jest.fn().mockResolvedValue(null)
-       });
+      service['orderModel'].findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null)
+      });
 
       await expect(
-        service.updateStatus('some-id', { status: 'preparing' }),
+        service.updateStatus('some-id', { status: 'PREPARING' }),
       ).rejects.toThrow(NotFoundException);
     });
   });
+
   describe('concurrency', () => {
     it('should handle concurrent requests with the same idempotency key by returning the same promise', async () => {
       const createOrderDto: CreateOrderDto = {
         customer_name: 'Concurrent User',
         customer_address: '123 Main St',
         customer_phone: '555-1234',
-        idempotency_key: 'concurrent-key',
         items: [
           {
             menu_item_id: mockMenuItem._id.toString(),
@@ -274,16 +269,11 @@ describe('OrdersService', () => {
 
       // We want to simulate a delay in processing to ensure overlap
       // We'll mock the 'save' method of the created order to delay
-      // To do this, we need to intercept the new this.orderModel() call
-      // or just delay the whole thing.
-      // Since we mocked 'orderModel' class in beforeEach, let's adjust it for this test.
-
       let resolveSave: (value: any) => void;
       const savePromise = new Promise((resolve) => {
         resolveSave = resolve;
       });
 
-      // Mock the order instance save method to wait for our signal
       const mockOrderInstance = {
         save: jest.fn().mockImplementation(async () => {
           await savePromise; // Wait until we manually resolve
@@ -300,15 +290,15 @@ describe('OrdersService', () => {
           return mockOrderInstance;
         }
         static findOne = jest.fn().mockReturnValue({
-            exec: jest.fn().mockResolvedValue(null)
+          exec: jest.fn().mockResolvedValue(null)
         });
       }
       service['orderModel'] = MockOrderModelDelayed as any;
 
 
       // Fire two requests concurrently
-      const req1 = service.create(createOrderDto);
-      const req2 = service.create(createOrderDto);
+      const req1 = service.create(createOrderDto, 'concurrent-key');
+      const req2 = service.create(createOrderDto, 'concurrent-key');
 
       // They should both be pending
       // resolve the save
@@ -321,12 +311,6 @@ describe('OrdersService', () => {
       expect(res1).toBeDefined();
       expect(res2).toBeDefined();
 
-      // IMPORTANT: They should be the EXACT same object reference if we returned the promise
-      // or at least have the same values.
-      // Since mapOrderToResponseJson creates a new DTO, strict reference equality might fail
-      // if the promise resolved and the second await got the result.
-      // However, we stored the PROMISE. So both awaits await the SAME promise.
-      // So the result reference might be identical if the processor returns a specific object.
       // Let's check values at least.
       expect(res1.id).toBe(res2.id);
 
@@ -334,6 +318,7 @@ describe('OrdersService', () => {
       expect(mockOrderInstance.save).toHaveBeenCalledTimes(1);
     });
   });
+
   describe('findAllAdmin', () => {
     it('should return paginated results with cursor', async () => {
       const mockOrders = [
@@ -345,8 +330,8 @@ describe('OrdersService', () => {
         sort: jest.fn().mockReturnThis(),
         limit: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(mockOrders.map(o => ({
-            ...o,
-            toObject: () => o
+          ...o,
+          toObject: () => o
         }))),
       };
       service['orderModel'].find = jest.fn().mockReturnValue(mockFind);
@@ -361,4 +346,3 @@ describe('OrdersService', () => {
     });
   });
 });
-

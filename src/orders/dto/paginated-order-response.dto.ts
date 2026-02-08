@@ -8,7 +8,11 @@ export class PaginatedOrderResponseDto {
   @Type(() => OrderResponseDto)
   items: OrderResponseDto[];
 
-  @ApiProperty({ nullable: true, description: 'Cursor for the next page, or null if no more items' })
+  @ApiProperty({
+    nullable: true,
+    description: 'Opaque cursor for the next page, or null if no more items',
+    example: 'eyJ1cGRhdGVkQXQiOiIyMDIzLTA4LTAxVDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY0YzlhmMxMjM0NTY3OCJ9',
+  })
   @Expose()
   nextCursor: string | null;
 

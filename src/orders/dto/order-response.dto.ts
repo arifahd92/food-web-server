@@ -49,7 +49,11 @@ export class OrderResponseDto {
   @Expose()
   customer_phone: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    enum: ['RECEIVED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED'],
+    example: 'RECEIVED',
+    description: 'Current status of the order',
+  })
   @Expose()
   status: string;
 

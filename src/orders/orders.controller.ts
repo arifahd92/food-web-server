@@ -30,7 +30,7 @@ import { GetOrdersAdminDto } from './dto/get-orders-admin.dto';
 @ApiTags('Orders')
 @Controller('api/orders')
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(private readonly ordersService: OrdersService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new order' })
@@ -49,14 +49,13 @@ export class OrdersController {
     @Body() createOrderDto: CreateOrderDto,
     @Headers('idempotency-key') idempotencyKey: string,
   ): Promise<OrderResponseDto> {
-    if (idempotencyKey) {
-      createOrderDto.idempotency_key = idempotencyKey;
-    }
-    return this.ordersService.create(createOrderDto);
+    // Idempotency key is now passed as a second argument, not part of DTO
+    return this.ordersService.create(createOrderDto, idempotencyKey);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all orders (Public/Simple list)' })
+  @Get()
+  @ApiOperation({ summary: 'Get all orders (Public/Simple list) - Recent first' })
   @ApiResponse({
     status: 200,
     description: 'List of all orders.',
@@ -81,7 +80,14 @@ export class OrdersController {
   }
 
   @Sse('stream')
-  @ApiOperation({ summary: 'Subscribe to order updates via SSE (Server-Sent Events)' })
+  @Sse('stream')
+  @ApiOperation({
+    summary: 'Subscribe to order updates via SSE (Server-Sent Events) or Socket.IO',
+    description:
+      'Connect via SSE to receive real-time updates. Alternatively, use Socket.IO client: listen for "orderStatusUpdated" event in "order_{id}" room.',
+  })
+  // Explicitly remove response type from Swagger as this is a stream
+  @ApiResponse({ status: 200, description: 'Stream of order update events' })
   stream(): Observable<MessageEvent> {
     return this.ordersService.getOrderStream();
   }
