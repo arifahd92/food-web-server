@@ -3,7 +3,7 @@ import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class GetOrdersAdminDto {
-  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 20 })
+  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 20, description: 'Number of items to return' })
   @IsOptional()
   @IsInt()
   @Min(1)

@@ -1,17 +1,17 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsEmail,
   IsEnum,
   IsMongoId,
   IsNotEmpty,
-  IsNumber,
-  IsPositive,
   IsString,
+  Matches,
+  Max,
   MaxLength,
   Min,
-  Max,
-  IsInt,
   ValidateNested,
+  IsInt,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -51,11 +51,12 @@ export class CreateOrderDto {
   @ApiProperty({ example: '555-0199', description: 'Contact phone number' })
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\+?[0-9\-\s\(\)]{7,20}$/, { message: 'Phone number must be valid (7-20 characters, digits, spaces, dashes, parens)' })
   @MaxLength(50)
   customer_phone: string;
 
   @ApiProperty({ example: 'john@example.com', description: 'Customer email for order tracking' })
-  @IsString()
+  @IsEmail({}, { message: 'Please provide a valid email address' })
   @IsNotEmpty()
   @MaxLength(255)
   customer_email: string;

@@ -3,7 +3,7 @@ import { OrderResponseDto } from './order-response.dto';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class PaginatedOrderResponseDto {
-  @ApiProperty({ type: [OrderResponseDto] })
+  @ApiProperty({ type: [OrderResponseDto], description: 'List of orders for the current page' })
   @Expose()
   @Type(() => OrderResponseDto)
   items: OrderResponseDto[];
@@ -16,7 +16,7 @@ export class PaginatedOrderResponseDto {
   @Expose()
   nextCursor: string | null;
 
-  @ApiProperty({ example: 10 })
+  @ApiProperty({ example: 10, description: 'Number of items per page' })
   @Expose()
   limit: number;
 }
