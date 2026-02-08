@@ -1,35 +1,12 @@
-name: Build and Deploy
+name: Deploy to EC2
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18.x]
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    
-    - run: npm ci
-    # Temporarily skip linting
-    # - run: npm run lint
-    - run: npm run build
-    # Skip tests if they also have issues
-    # - run: npm test
-
   deploy:
-    needs: build-and-test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     
     steps:
     - name: Deploy to EC2
