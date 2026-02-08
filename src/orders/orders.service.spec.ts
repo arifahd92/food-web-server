@@ -97,6 +97,7 @@ describe('OrdersService', () => {
         customer_name: 'John Doe',
         customer_address: '123 Main St',
         customer_phone: '555-1234',
+        customer_email: 'john@example.com',
         items: [
           {
             menu_item_id: mockMenuItem._id.toString(),
@@ -129,6 +130,7 @@ describe('OrdersService', () => {
         customer_name: 'John Doe',
         customer_address: '123 Main St',
         customer_phone: '555-1234',
+        customer_email: 'john@example.com',
         items: [],
       };
 
@@ -153,6 +155,7 @@ describe('OrdersService', () => {
         customer_name: 'John Doe',
         customer_address: '123 Main St',
         customer_phone: '555-1234',
+        customer_email: 'john@example.com',
         items: [
           {
             menu_item_id: new Types.ObjectId().toString(),
@@ -250,6 +253,7 @@ describe('OrdersService', () => {
         customer_name: 'Concurrent User',
         customer_address: '123 Main St',
         customer_phone: '555-1234',
+        customer_email: 'concurrent@example.com',
         items: [
           {
             menu_item_id: mockMenuItem._id.toString(),

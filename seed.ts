@@ -39,7 +39,7 @@ const menuItems = [
     name: 'Grilled Salmon',
     description: 'Fresh salmon fillet, lemon butter sauce, asparagus',
     price: 18.99,
-    image_url: 'https://images.unsplash.com/photo-1467003909585-2f8a7270028d?w=400',
+    image_url: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=400',
   },
   {
     name: 'Spaghetti Carbonara',
@@ -63,9 +63,10 @@ const menuItems = [
     name: 'Iced Coffee',
     description: 'Cold brew coffee, milk, sweet cream',
     price: 4.99,
-    image_url: 'https://images.unsplash.com/photo-1517701604599-bb29b5c5090c?w=400',
+    image_url: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400',
   },
 ];
+
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);

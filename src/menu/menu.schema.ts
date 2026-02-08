@@ -25,6 +25,12 @@ export class MenuItem {
 
 export const MenuItemSchema = SchemaFactory.createForClass(MenuItem);
 
+// -------------------------------------------------------------------------
+// INDEXES
+// -------------------------------------------------------------------------
+// _id index exists by default and is used for:
+// - Bulk lookups during order creation: find({ _id: { $in: menuIds } })
+
 MenuItemSchema.set('toJSON', {
   virtuals: true,
   transform: (doc, ret: any) => {
